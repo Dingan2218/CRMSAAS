@@ -62,7 +62,6 @@ sudo nano /etc/postgresql/*/main/pg_hba.conf
 sudo systemctl restart postgresql
 ```
 
-## Step 4: Upload Your Application
 
 ### Option A: Using Git (Recommended)
 
@@ -72,8 +71,8 @@ sudo mkdir -p /var/www/crm
 sudo chown -R $USER:$USER /var/www/crm
 cd /var/www/crm
 
-# Clone your repository (if you have it on GitHub/GitLab)
-git clone https://github.com/yourusername/your-repo.git .
+# Clone your repository
+git clone https://github.com/Dingan2218/RMA.git .
 
 # Or initialize git and push from local
 # On your local machine:

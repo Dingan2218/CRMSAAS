@@ -248,9 +248,24 @@ sudo chown -R $USER:$USER /var/www/crm
 cd /var/www/crm
 ```
 
-### Step 5.2: Upload Files from Windows
+### Step 5.2: Clone from GitHub (Recommended)
 
-**Open a NEW PowerShell window (keep SSH connected):**
+**In your SSH terminal:**
+
+```bash
+# Navigate to directory
+cd /var/www/crm
+
+# Clone the repository
+git clone https://github.com/Dingan2218/RMA.git .
+
+# Verify files
+ls -la
+```
+
+### Step 5.2 Alternative: Upload Files from Windows
+
+**If you prefer SCP, open a NEW PowerShell window (keep SSH connected):**
 
 ```powershell
 # Navigate to your project

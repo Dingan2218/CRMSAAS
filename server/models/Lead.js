@@ -39,7 +39,7 @@ const Lead = sequelize.define('Lead', {
     allowNull: true
   },
   status: {
-    type: DataTypes.ENUM('fresh', 'follow-up', 'rnr', 'dead', 'registered', 'cancelled', 'rejected'),
+    type: DataTypes.ENUM('fresh', 'follow-up', 'rnr', 'closed', 'dead', 'registered', 'cancelled', 'rejected'),
     defaultValue: 'fresh'
   },
   priority: {

@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import logo from '../assets/logo.png';
-import loginBg from '../assets/loginBg.jpg';
+// import logo from '../assets/logo.png'; // Replaced
+const logo = 'https://www.sysdevcode.com/images/SYSDEVCODELOGObackgroundremove.png'; // Using provided URL
+// import loginBg from '../assets/loginBg.jpg'; // Replaced
+const loginBg = '/login-bg.jpg'; // Using uploaded public asset
 
 const Login = () => {
-  const [credentials, setCredentials] = useState({ email: '', password: '' });
+  const [credentials, setCredentials] = useState({ identifier: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const { login, loginWithPhone } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -17,9 +19,16 @@ const Login = () => {
 
     try {
       setError('');
-      const user = await login(credentials);
-      
-      if (user.role === 'admin' || user.role === 'accountant') {
+      const id = (credentials.identifier || '').trim();
+      const isEmail = id.includes('@');
+
+      const user = isEmail
+        ? await login({ email: id, password: credentials.password })
+        : await loginWithPhone({ phone: id, password: credentials.password });
+
+      if (user.role === 'super_admin') {
+        navigate('/super-admin');
+      } else if (['admin', 'accountant'].includes(user.role)) {
         navigate('/admin');
       } else {
         navigate('/salesperson');
@@ -44,7 +53,7 @@ const Login = () => {
 
       <div className="relative z-10 bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl w-full max-w-md p-8">
         <div className="flex flex-col items-center mb-8">
-          <img src={logo} alt="Company Logo" className="h-12 md:h-14 w-auto mb-2" />
+          <img src={logo} alt="Company Logo" className="h-24 md:h-32 w-auto mb-2" />
           <p className="text-gray-600">Sign in to your account</p>
         </div>
 
@@ -55,14 +64,16 @@ const Login = () => {
             </div>
           )}
           <div>
-            <label className="label">Email Address</label>
+            <label className="label">Email or Phone</label>
             <input
-              type="email"
+              type="text"
               required
               className="input-field"
               aria-invalid={Boolean(error)}
-              value={credentials.email}
-              onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
+              value={credentials.identifier}
+              onChange={(e) => setCredentials({ ...credentials, identifier: e.target.value })}
+              placeholder="you@example.com or 9876543210"
+              inputMode="email"
             />
           </div>
 

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { userAPI } from '../../services/api';
-import { UserPlus, Edit2, UserX, TrendingUp } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { UserPlus, Edit2, UserX, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const ManageSalespeople = () => {
+  const { user } = useAuth();
   const [salespeople, setSalespeople] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -34,7 +36,7 @@ const ManageSalespeople = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     try {
       if (editingUser) {
         await userAPI.updateSalesperson(editingUser.id, formData);
@@ -43,7 +45,7 @@ const ManageSalespeople = () => {
         await userAPI.createSalesperson(formData);
         toast.success('Salesperson created successfully');
       }
-      
+
       setShowModal(false);
       resetForm();
       fetchSalespeople();
@@ -65,14 +67,26 @@ const ManageSalespeople = () => {
     setShowModal(true);
   };
 
-  const handleDeactivate = async (id) => {
-    if (window.confirm('Are you sure you want to deactivate this salesperson?')) {
+  const handleDeactivate = async (id, name) => {
+    if (window.confirm(`Are you sure you want to deactivate ${name}? They will no longer be able to log in.`)) {
       try {
         await userAPI.deactivateSalesperson(id);
         toast.success('Salesperson deactivated');
         fetchSalespeople();
       } catch (error) {
         toast.error('Failed to deactivate salesperson');
+      }
+    }
+  };
+
+  const handleDelete = async (id, name) => {
+    if (window.confirm(`Permanently delete ${name}? This action cannot be undone.`)) {
+      try {
+        await userAPI.deleteSalesperson(id);
+        toast.success('Salesperson deleted permanently');
+        fetchSalespeople();
+      } catch (error) {
+        toast.error(error.response?.data?.message || 'Failed to delete salesperson');
       }
     }
   };
@@ -105,6 +119,11 @@ const ManageSalespeople = () => {
     </div>;
   }
 
+  // Calculate Limit Stats
+  const maxUsers = user?.company?.maxUsers || 5;
+  const currentUsage = salespeople.length;
+  const limitReached = currentUsage >= maxUsers;
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -112,20 +131,36 @@ const ManageSalespeople = () => {
           <h1 className="text-3xl font-bold text-gray-900">Manage Salespeople</h1>
           <p className="text-gray-600 mt-1">Add, edit, and manage your sales team</p>
         </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowModal(true);
-          }}
-          className="btn-primary flex items-center space-x-2"
-        >
-          <UserPlus className="h-5 w-5" />
-          <span>Add Salesperson</span>
-        </button>
+
+        <div className="flex items-center gap-4">
+          {/* Limit Indicator */}
+          <div className="text-right">
+            <div className="text-sm font-medium text-gray-700">
+              Users: <span className={limitReached ? "text-red-600 font-bold" : "text-green-600 font-bold"}>{currentUsage}</span> / {maxUsers}
+            </div>
+            {limitReached && <div className="text-xs text-red-500 font-medium">Limit Reached</div>}
+          </div>
+
+          <button
+            disabled={limitReached}
+            onClick={() => {
+              resetForm();
+              setShowModal(true);
+            }}
+            className={limitReached
+              ? "flex items-center space-x-2 bg-gray-300 text-gray-500 cursor-not-allowed px-4 py-2 rounded-lg"
+              : "btn-primary flex items-center space-x-2"
+            }
+            title={limitReached ? "User limit reached. Upgrade plan to add more." : "Add new salesperson"}
+          >
+            <UserPlus className="h-5 w-5" />
+            <span>Add Salesperson</span>
+          </button>
+        </div>
       </div>
 
-      {/* Salespeople Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Salespeople Grid: phones & iPad (<= lg) single column; desktop >= lg shows 3 columns */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {salespeople.map((person) => {
           const stats = getLeadStats(person);
           return (
@@ -138,9 +173,8 @@ const ManageSalespeople = () => {
                     <p className="text-sm text-gray-600">{person.phone}</p>
                   )}
                 </div>
-                <span className={`px-2 py-1 text-xs rounded-full ${
-                  person.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                }`}>
+                <span className={`px-2 py-1 text-xs rounded-full ${person.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  }`}>
                   {person.isActive ? 'Active' : 'Inactive'}
                 </span>
               </div>
@@ -170,13 +204,20 @@ const ManageSalespeople = () => {
                 </button>
                 {person.isActive && (
                   <button
-                    onClick={() => handleDeactivate(person.id)}
+                    onClick={() => handleDeactivate(person.id, person.name)}
                     className="flex-1 btn-danger text-sm flex items-center justify-center space-x-1"
                   >
                     <UserX className="h-4 w-4" />
                     <span>Deactivate</span>
                   </button>
                 )}
+                <button
+                  onClick={() => handleDelete(person.id, person.name)}
+                  className="flex-1 btn-danger text-sm flex items-center justify-center space-x-1"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Delete</span>
+                </button>
               </div>
             </div>
           );
@@ -237,20 +278,24 @@ const ManageSalespeople = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Monthly Target ($)</label>
+                  <label className="label">Monthly Conversions Target</label>
                   <input
                     type="number"
                     className="input-field"
+                    min={0}
+                    step={1}
                     value={formData.monthlyTarget}
                     onChange={(e) => setFormData({ ...formData, monthlyTarget: e.target.value })}
                   />
                 </div>
 
                 <div>
-                  <label className="label">Weekly Target ($)</label>
+                  <label className="label">Weekly Conversions Target</label>
                   <input
                     type="number"
                     className="input-field"
+                    min={0}
+                    step={1}
                     value={formData.weeklyTarget}
                     onChange={(e) => setFormData({ ...formData, weeklyTarget: e.target.value })}
                   />

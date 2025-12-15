@@ -40,12 +40,12 @@ const SalespersonDashboard = () => {
     {
       name: 'Weekly',
       Target: parseFloat(weekly?.target || 0),
-      Achieved: parseFloat(weekly?.revenue || 0)
+      Achieved: parseInt(weekly?.closedLeads || 0)
     },
     {
       name: 'Monthly',
       Target: parseFloat(monthly?.target || 0),
-      Achieved: parseFloat(monthly?.revenue || 0)
+      Achieved: parseInt(monthly?.closedLeads || 0)
     }
   ];
 
@@ -71,7 +71,7 @@ const SalespersonDashboard = () => {
           color="orange"
         />
         <StatCard
-          title="Closed Deals"
+          title="Registered Leads"
           value={overview?.closedLeads || 0}
           icon={CheckCircle}
           color="green"
@@ -86,18 +86,18 @@ const SalespersonDashboard = () => {
 
       {/* Performance Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Target vs Achievement */}
+        {/* Closings Target vs Achieved (Number of conversions) */}
         <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Target vs Achievement</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Closings Target vs Achieved</h2>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={performanceData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip formatter={(value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value)} />
+              <YAxis allowDecimals={false} />
+              <Tooltip formatter={(value) => [`${value} conversions`, '']} />
               <Legend />
-              <Bar dataKey="Target" fill="#94a3b8" name="Target" />
-              <Bar dataKey="Achieved" fill="#10b981" name="Achieved" />
+              <Bar dataKey="Target" fill="#94a3b8" name="Target (Closings)" />
+              <Bar dataKey="Achieved" fill="#10b981" name="Achieved (Closings)" />
             </BarChart>
           </ResponsiveContainer>
           
@@ -125,7 +125,7 @@ const SalespersonDashboard = () => {
                     {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(parseFloat(monthly?.revenue || 0))}
                   </p>
                   <p className="text-xs text-green-600 mt-1">
-                    Target: {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(parseFloat(monthly?.target || 0))}
+                    Target: {parseInt(monthly?.target || 0)} conversions
                   </p>
                 </div>
                 <DollarSign className="h-12 w-12 text-green-600" />
@@ -140,7 +140,7 @@ const SalespersonDashboard = () => {
                     {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(parseFloat(weekly?.revenue || 0))}
                   </p>
                   <p className="text-xs text-blue-600 mt-1">
-                    Target: {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(parseFloat(weekly?.target || 0))}
+                    Target: {parseInt(weekly?.target || 0)} conversions
                   </p>
                 </div>
                 <Target className="h-12 w-12 text-blue-600" />
@@ -150,11 +150,11 @@ const SalespersonDashboard = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center p-3 bg-gray-50 rounded-lg">
                 <p className="text-sm text-gray-600">This Week</p>
-                <p className="text-xl font-bold text-gray-900">{weekly?.closedLeads || 0} Closed</p>
+                <p className="text-xl font-bold text-gray-900">{weekly?.closedLeads || 0} Registered</p>
               </div>
               <div className="text-center p-3 bg-gray-50 rounded-lg">
                 <p className="text-sm text-gray-600">This Month</p>
-                <p className="text-xl font-bold text-gray-900">{monthly?.closedLeads || 0} Closed</p>
+                <p className="text-xl font-bold text-gray-900">{monthly?.closedLeads || 0} Registered</p>
               </div>
             </div>
           </div>

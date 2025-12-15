@@ -25,12 +25,20 @@ const User = sequelize.define('User', {
     allowNull: false
   },
   role: {
-    type: DataTypes.ENUM('admin', 'accountant', 'salesperson'),
+    type: DataTypes.ENUM('super_admin', 'admin', 'accountant', 'salesperson'),
     defaultValue: 'salesperson'
   },
   phone: {
     type: DataTypes.STRING,
     allowNull: true
+  },
+  companyId: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'Companies',
+      key: 'id'
+    }
   },
   isActive: {
     type: DataTypes.BOOLEAN,

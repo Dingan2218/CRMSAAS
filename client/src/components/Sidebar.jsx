@@ -62,7 +62,19 @@ const Sidebar = () => {
     { to: '/salesperson/leads', icon: ClipboardList, label: 'My Leads' }
   ];
 
-  const links = (isAdmin || isAccountant) ? adminLinks : salespersonLinks;
+  const superAdminLinks = [
+    { to: '/super-admin', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/super-admin/companies', icon: Users, label: 'Companies' }, // Reusing Users icon or change to Building if available
+  ];
+
+  let links = [];
+  if (useAuth().isSuperAdmin) {
+    links = superAdminLinks;
+  } else if (isAdmin || isAccountant) {
+    links = adminLinks;
+  } else {
+    links = salespersonLinks;
+  }
 
   return (
     <>
@@ -87,17 +99,17 @@ const Sidebar = () => {
             {links.map((link) => {
               const Icon = link.icon;
               const isActive = location.pathname === link.to;
-              
+
               return (
                 <Link
                   key={link.to}
                   to={link.to}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-primary-600 text-white'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
+                  style={{ backgroundColor: isActive ? 'var(--color-primary-600)' : undefined }}
+                  className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${isActive
+                    ? 'text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                    }`}
                 >
                   <Icon className="h-5 w-5" />
                   <span className="font-medium">{link.label}</span>

@@ -1,6 +1,35 @@
-import { Lead, User, Activity } from '../models/index.js';
+import { Lead, User, Activity, SuperAdminMessage } from '../models/index.js';
 import { Op } from 'sequelize';
 import sequelize from '../config/database.js';
+
+// @desc    Get active global popup
+// @route   GET /api/dashboard/popup
+// @access  Private/Admin
+export const getActivePopup = async (req, res) => {
+  try {
+    const userCompanyId = req.user.companyId || null; // Ensure null if undefined
+
+    const whereClause = {
+      isActive: true,
+      [Op.or]: [
+        { type: 'all' },
+        { type: null } // Handle legacy records
+      ]
+    };
+
+    if (userCompanyId) {
+      whereClause[Op.or].push({ targetCompanyId: userCompanyId });
+    }
+
+    const popup = await SuperAdminMessage.findOne({
+      where: whereClause,
+      order: [['createdAt', 'DESC']]
+    });
+    res.status(200).json({ success: true, data: popup });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 
 // @desc    Get admin dashboard stats
 // @route   GET /api/dashboard/admin
@@ -107,6 +136,28 @@ export const getAdminDashboard = async (req, res) => {
       subQuery: false
     });
 
+    // Targets table: conversions (closed leads this month) vs monthlyTarget for each active salesperson
+    const targetsRaw = await User.findAll({
+      where: { role: 'salesperson', isActive: true },
+      attributes: [
+        'id',
+        'name',
+        'monthlyTarget',
+        [
+          sequelize.literal(`(
+            SELECT COUNT(*)
+            FROM "Leads" AS l
+            WHERE l."assignedTo" = "User"."id"
+            AND l."status" = 'closed'
+            AND l."closedAt" >= '${startOfMonth.toISOString()}'
+          )`),
+          'conversions'
+        ]
+      ],
+      order: [[sequelize.literal('"conversions"'), 'DESC']],
+      raw: true
+    });
+
     // Recent activities
     const recentActivities = await Activity.findAll({
       limit: 10,
@@ -135,7 +186,7 @@ export const getAdminDashboard = async (req, res) => {
       }
     });
 
-    const conversionRate = leadsThisMonth > 0 
+    const conversionRate = leadsThisMonth > 0
       ? ((closedLeads / leadsThisMonth) * 100).toFixed(2)
       : 0;
 
@@ -161,6 +212,12 @@ export const getAdminDashboard = async (req, res) => {
           totalLeads: parseInt(p.dataValues.totalLeads || 0),
           closedLeads: parseInt(p.dataValues.closedLeads || 0),
           revenue: parseFloat(p.dataValues.revenue || 0).toFixed(2)
+        })),
+        targets: targetsRaw.map(t => ({
+          id: t.id,
+          name: t.name,
+          conversions: parseInt(t.conversions || 0),
+          target: parseInt(t.monthlyTarget || 0)
         })),
         recentActivities
       }
@@ -291,18 +348,20 @@ export const getSalespersonDashboard = async (req, res) => {
           totalLeads: parseInt(monthlyData.totalLeads),
           closedLeads: parseInt(monthlyData.closedLeads),
           revenue: parseFloat(monthlyData.revenue).toFixed(2),
-          target: parseFloat(user.monthlyTarget).toFixed(2),
-          achievement: user.monthlyTarget > 0 
-            ? ((parseFloat(monthlyData.revenue) / parseFloat(user.monthlyTarget)) * 100).toFixed(2)
+          // Target is number of conversions (closed leads)
+          target: parseInt(user.monthlyTarget || 0),
+          achievement: parseFloat(user.monthlyTarget || 0) > 0
+            ? ((parseInt(monthlyData.closedLeads || 0) / parseFloat(user.monthlyTarget)) * 100).toFixed(2)
             : 0
         },
         weekly: {
           totalLeads: parseInt(weeklyData.totalLeads),
           closedLeads: parseInt(weeklyData.closedLeads),
           revenue: parseFloat(weeklyData.revenue).toFixed(2),
-          target: parseFloat(user.weeklyTarget).toFixed(2),
-          achievement: user.weeklyTarget > 0 
-            ? ((parseFloat(weeklyData.revenue) / parseFloat(user.weeklyTarget)) * 100).toFixed(2)
+          // Target is number of conversions (closed leads)
+          target: parseInt(user.weeklyTarget || 0),
+          achievement: parseFloat(user.weeklyTarget || 0) > 0
+            ? ((parseInt(weeklyData.closedLeads || 0) / parseFloat(user.weeklyTarget)) * 100).toFixed(2)
             : 0
         },
         recentCalls,
@@ -384,7 +443,7 @@ export const getLeaderboard = async (req, res) => {
       totalLeads: parseInt(item.totalLeads || 0),
       closedLeads: parseInt(item.closedLeads || 0),
       revenue: parseFloat(item.revenue || 0).toFixed(2),
-      conversionRate: item.totalLeads > 0 
+      conversionRate: item.totalLeads > 0
         ? ((parseInt(item.closedLeads) / parseInt(item.totalLeads)) * 100).toFixed(2)
         : 0,
       isStarPerformer: index === 0 && parseFloat(item.revenue) > 0
@@ -397,6 +456,86 @@ export const getLeaderboard = async (req, res) => {
     });
   } catch (error) {
     console.error('Leaderboard error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get status counts for a time period
+// @route   GET /api/dashboard/status-counts
+// @access  Private/Admin
+export const getStatusCounts = async (req, res) => {
+  try {
+    let { period = 'daily' } = req.query;
+    const p = String(period || '').toLowerCase();
+
+    const now = new Date();
+    let startDate = null;
+
+    if (p === 'daily' || p === 'day' || p === 'today') {
+      startDate = new Date();
+      startDate.setHours(0, 0, 0, 0);
+    } else if (p === 'weekly' || p === 'week') {
+      startDate = new Date();
+      // set to start of week (Sunday as 0 to match existing logic)
+      startDate.setDate(startDate.getDate() - startDate.getDay());
+      startDate.setHours(0, 0, 0, 0);
+    } else if (p === 'monthly' || p === 'month') {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (p === 'yearly' || p === 'year') {
+      startDate = new Date(now.getFullYear(), 0, 1);
+    } else if (p === 'all') {
+      startDate = null; // no filter
+    } else {
+      // Fallback to monthly if unknown
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      period = 'monthly';
+    }
+
+    const where = {};
+    if (startDate) {
+      where.createdAt = { [Op.gte]: startDate };
+    }
+
+    const total = await Lead.count({ where });
+
+    const breakdown = await Lead.findAll({
+      attributes: ['status', [sequelize.fn('COUNT', sequelize.col('status')), 'count']],
+      where,
+      group: ['status'],
+      raw: true
+    });
+
+    const statusCounts = {
+      all: total,
+      fresh: 0,
+      'follow-up': 0,
+      rnr: 0,
+      closed: 0, // include 'registered' in this bucket for UI display as "Registered"
+      dead: 0,
+      cancelled: 0,
+      rejected: 0
+    };
+
+    for (const row of breakdown) {
+      const status = row.status;
+      const count = Number(row.count || 0);
+      if (status === 'registered') {
+        statusCounts.closed += count;
+      } else if (status in statusCounts) {
+        statusCounts[status] += count;
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      period: p,
+      statusCounts
+    });
+  } catch (error) {
+    console.error('Status counts error:', error);
     res.status(500).json({
       success: false,
       message: error.message

@@ -131,7 +131,7 @@ const Leaderboard = () => {
                   Total Leads
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Closed Deals
+                  Registered Leads
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Conversion Rate
@@ -244,7 +244,7 @@ const Leaderboard = () => {
                     <p className="text-xs text-gray-600 truncate">{person.email}</p>
                     <div className="mt-1 flex items-center justify-between text-xs">
                       <span className="text-gray-700">Leads: <strong>{person.totalLeads}</strong></span>
-                      <span className="text-green-700">Closed: <strong>{person.closedLeads}</strong></span>
+                      <span className="text-green-700">Registered: <strong>{person.closedLeads}</strong></span>
                       <span className="text-gray-700">Conv: <strong>{parseFloat(person.conversionRate).toFixed(1)}%</strong></span>
                       <span className="text-green-700 font-semibold">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(parseFloat(person.revenue))}</span>
                     </div>
@@ -274,7 +274,7 @@ const Leaderboard = () => {
           <div className="card bg-gradient-to-br from-blue-50 to-blue-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-blue-700 font-medium">Total Closed Deals</p>
+                <p className="text-sm text-blue-700 font-medium">Total Registered Leads</p>
                 <p className="text-3xl font-bold text-blue-900 mt-2">
                   {leaderboard.reduce((sum, p) => sum + p.closedLeads, 0)}
                 </p>

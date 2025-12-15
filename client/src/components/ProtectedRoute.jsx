@@ -16,6 +16,12 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
 
+  // Subscription Check
+  // Super Admins are exempt. Admins/Salespeople are blocked if expired.
+  if (user.role !== 'super_admin' && user.company?.subscriptionStatus === 'expired') {
+    return <Navigate to="/payment-required" replace />;
+  }
+
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/" replace />;
   }

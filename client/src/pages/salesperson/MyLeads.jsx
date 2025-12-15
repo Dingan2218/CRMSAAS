@@ -10,11 +10,27 @@ const MyLeads = () => {
   const [selectedLead, setSelectedLead] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [countries, setCountries] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
+  const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState({
     status: '',
     search: '',
-    country: ''
+    country: '',
+    product: ''
   });
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: '',
+    phone: '',
+    country: '',
+    email: '',
+    product: '',
+    source: '',
+    notes: ''
+  });
+  const [statusSummary, setStatusSummary] = useState({ all: 0, fresh: 0, 'follow-up': 0, closed: 0, dead: 0, cancelled: 0, rejected: 0 });
   const [updateData, setUpdateData] = useState({
     status: '',
     notes: '',
@@ -25,7 +41,8 @@ const MyLeads = () => {
   useEffect(() => {
     fetchLeads();
     fetchCountries();
-  }, [filters]);
+    fetchProducts();
+  }, [filters, page]);
 
   const fetchCountries = async () => {
     try {
@@ -36,10 +53,52 @@ const MyLeads = () => {
     }
   };
 
+  const fetchProducts = async () => {
+    try {
+      const response = await leadAPI.getProducts();
+      setProducts(response.data.data);
+    } catch (error) {
+      // Silently fail if no products
+    }
+  };
+
   const fetchLeads = async () => {
     try {
-      const response = await leadAPI.getMyLeads(filters);
-      setLeads(response.data.data);
+      // list with current filters
+      const listPromise = leadAPI.getMyLeads({ ...filters, page, limit: pageSize });
+      // summary without status filter (Option A)
+      const { status: _status, ...rest } = filters;
+      const summaryPromise = leadAPI.getMyLeads({ ...rest, status: '', page: 1, limit: 1 });
+
+      const [listResp, summaryResp] = await Promise.all([listPromise, summaryPromise]);
+
+      const rows = Array.isArray(listResp.data.data) ? listResp.data.data : [];
+      setLeads(rows);
+      setTotal(listResp.data.total || rows.length);
+
+      const apiSummary = summaryResp?.data?.statusSummary;
+      if (apiSummary) {
+        setStatusSummary({
+          all: apiSummary.all ?? 0,
+          fresh: apiSummary.fresh ?? 0,
+          'follow-up': apiSummary['follow-up'] ?? 0,
+          closed: apiSummary.closed ?? 0,
+          dead: apiSummary.dead ?? 0,
+          cancelled: apiSummary.cancelled ?? 0,
+          rejected: apiSummary.rejected ?? 0,
+        });
+      } else {
+        const fallback = rows.reduce((acc, l) => { acc.all += 1; acc[l.status] = (acc[l.status] || 0) + 1; return acc; }, { all: 0 });
+        setStatusSummary({
+          all: fallback.all ?? 0,
+          fresh: fallback.fresh ?? 0,
+          'follow-up': fallback['follow-up'] ?? 0,
+          closed: fallback.closed ?? 0,
+          dead: fallback.dead ?? 0,
+          cancelled: fallback.cancelled ?? 0,
+          rejected: fallback.rejected ?? 0,
+        });
+      }
     } catch (error) {
       toast.error('Failed to load leads');
     } finally {
@@ -104,15 +163,7 @@ const MyLeads = () => {
     }
   };
 
-  const statusCounts = {
-    all: leads.length,
-    fresh: leads.filter(l => l.status === 'fresh').length,
-    'follow-up': leads.filter(l => l.status === 'follow-up').length,
-    closed: leads.filter(l => l.status === 'closed').length,
-    dead: leads.filter(l => l.status === 'dead').length,
-    cancelled: leads.filter(l => l.status === 'cancelled').length,
-    rejected: leads.filter(l => l.status === 'rejected').length
-  };
+  const statusCounts = statusSummary;
 
   if (loading) {
     return (
@@ -124,9 +175,26 @@ const MyLeads = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">My Leads</h1>
-        <p className="text-gray-600 mt-1">Manage and track your assigned leads</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">My Leads</h1>
+          <p className="text-gray-600 mt-1">Manage and track your assigned leads</p>
+        </div>
+        <div className="hidden md:block">
+          <button
+            onClick={() => setShowCreate(true)}
+            className="inline-flex bg-red-600 hover:bg-red-700 text-white font-bold uppercase tracking-wider text-xs px-4 py-2 rounded-full shadow"
+          >
+            ADD LEAD
+          </button>
+        </div>
+        {/* Mobile ADD LEAD pill */}
+        <button
+          onClick={() => setShowCreate(true)}
+          className="md:hidden self-start ml-auto bg-red-600 hover:bg-red-700 text-white font-bold uppercase tracking-wider text-xs px-4 py-2 rounded-full shadow"
+        >
+          ADD LEAD
+        </button>
       </div>
 
       {/* Filters */}
@@ -138,16 +206,16 @@ const MyLeads = () => {
               <input
                 type="text"
                 placeholder="Search leads..."
-                className="input-field pl-10"
+                className="input-field pl-10 text-[0.6rem] lg:text-base"
                 value={filters.search}
                 onChange={(e) => setFilters({ ...filters, search: e.target.value })}
               />
             </div>
           </div>
           
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             <select
-              className="input-field"
+              className="input-field text-[0.6rem] lg:text-base w-full"
               value={filters.country}
               onChange={(e) => setFilters({ ...filters, country: e.target.value })}
             >
@@ -159,28 +227,40 @@ const MyLeads = () => {
               ))}
             </select>
             <select
-              className="input-field"
+              className="input-field text-[0.6rem] lg:text-base w-full"
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
             >
               <option value="">All Status</option>
               <option value="fresh">Fresh</option>
               <option value="follow-up">Follow-up</option>
-              <option value="closed">Closed</option>
+              <option value="closed">Registered</option>
               <option value="dead">Dead</option>
               <option value="cancelled">Cancelled</option>
               <option value="rejected">Rejected</option>
             </select>
+            <select
+              className="input-field text-[0.6rem] lg:text-base w-full col-span-2 md:col-span-1"
+              value={filters.product || ''}
+              onChange={(e) => setFilters({ ...filters, product: e.target.value })}
+            >
+              <option value="">All Products</option>
+              {products.map((product) => (
+                <option key={product} value={product}>
+                  {product}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
-        {/* Status Tabs */}
-        <div className="flex gap-2 mt-4 overflow-x-auto">
+        {/* Status Tabs - two layers (grid) on mobile and desktop */}
+        <div className="grid grid-cols-4 gap-2 mt-4">
           {[
             { key: '', label: 'All', color: 'bg-gray-100 text-gray-800' },
             { key: 'fresh', label: 'Fresh', color: 'bg-white border-2 border-gray-300' },
             { key: 'follow-up', label: 'Follow-up', color: 'bg-orange-100 text-orange-800' },
-            { key: 'closed', label: 'Closed', color: 'bg-green-100 text-green-800' },
+            { key: 'closed', label: 'Registered', color: 'bg-green-100 text-green-800' },
             { key: 'dead', label: 'Dead', color: 'bg-red-100 text-red-800' },
             { key: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800' },
             { key: 'rejected', label: 'Rejected', color: 'bg-red-100 text-red-800' }
@@ -188,11 +268,11 @@ const MyLeads = () => {
             <button
               key={tab.key}
               onClick={() => setFilters({ ...filters, status: tab.key })}
-              className={`px-4 py-2 rounded-lg font-medium transition-all ${tab.color} ${
+              className={`inline-flex items-center justify-center w-full h-7 px-2 py-0.5 text-[10px] rounded-full font-medium transition-all whitespace-nowrap ${tab.color} ${
                 filters.status === tab.key ? 'ring-2 ring-primary-500' : ''
               }`}
             >
-              {tab.label} ({statusCounts[tab.key || 'all']})
+              {tab.label} ({statusCounts[tab.key || 'all'] ?? 0})
             </button>
           ))}
         </div>
@@ -215,6 +295,108 @@ const MyLeads = () => {
         </div>
       )}
 
+      {/* Mobile FAB removed to avoid duplication with header pill */}
+
+      {/* Create Lead Modal */}
+      {showCreate && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg w-full max-w-xl p-5 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold">Create Lead</h2>
+              <button onClick={() => setShowCreate(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <form onSubmit={async (e)=>{
+              e.preventDefault();
+              try {
+                if (!createForm.name || !createForm.phone || !createForm.country) {
+                  return alert('Name, phone and country are required');
+                }
+                const payload = {
+                  ...createForm
+                };
+                await leadAPI.createLead(payload);
+                setShowCreate(false);
+                setCreateForm({ name: '', phone: '', country: '', email: '', product: '', source: '', notes: '' });
+                fetchLeads();
+              } catch (err) {
+                alert(err.response?.data?.message || 'Failed to create lead');
+              }
+            }} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="label">Name</label>
+                <input className="input-field" value={createForm.name} onChange={(e)=>setCreateForm({...createForm,name:e.target.value})} required />
+              </div>
+              <div>
+                <label className="label">Phone</label>
+                <input className="input-field" value={createForm.phone} onChange={(e)=>setCreateForm({...createForm,phone:e.target.value})} required />
+              </div>
+              <div>
+                <label className="label">Country</label>
+                <input
+                  className="input-field"
+                  value={createForm.country}
+                  onChange={(e)=>setCreateForm({...createForm,country:e.target.value})}
+                  list="country-list-ml"
+                  placeholder="Start typing..."
+                  required
+                />
+                <datalist id="country-list-ml">
+                  {countries.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
+              </div>
+              <div>
+                <label className="label">Email</label>
+                <input type="email" className="input-field" value={createForm.email} onChange={(e)=>setCreateForm({...createForm,email:e.target.value})} />
+              </div>
+              <div>
+                <label className="label">Product</label>
+                <input className="input-field" value={createForm.product} onChange={(e)=>setCreateForm({...createForm,product:e.target.value})} />
+              </div>
+              <div>
+                <label className="label">Source</label>
+                <input className="input-field" value={createForm.source} onChange={(e)=>setCreateForm({...createForm,source:e.target.value})} />
+              </div>
+              <div className="md:col-span-2">
+                <label className="label">Notes</label>
+                <textarea className="input-field" rows={3} value={createForm.notes} onChange={(e)=>setCreateForm({...createForm,notes:e.target.value})} />
+              </div>
+              <div className="md:col-span-2 flex justify-end gap-2">
+                <button type="button" onClick={()=>setShowCreate(false)} className="btn-secondary">Cancel</button>
+                <button type="submit" className="btn-primary">Create</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {total > pageSize && (
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <div className="text-sm text-gray-600">
+            Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)} of {total} leads
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              className="btn-secondary text-sm"
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page <= 1}
+            >
+              Previous
+            </button>
+            <span className="text-sm">Page <span className="font-semibold">{page}</span></span>
+            <button
+              className="btn-secondary text-sm"
+              onClick={() => setPage(page + 1)}
+              disabled={page * pageSize >= total}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Lead Detail Modal */}
       {showModal && selectedLead && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -227,32 +409,36 @@ const MyLeads = () => {
                   <p className="text-sm text-gray-600">Name</p>
                   <p className="font-semibold text-gray-900">{selectedLead.name}</p>
                 </div>
+                {selectedLead.salesperson && (
+                  <div>
+                    <p className="text-sm text-gray-600">Assigned To</p>
+                    <p className="font-semibold text-gray-900">{selectedLead.salesperson.name}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm text-gray-600">Email</p>
+                  {selectedLead.email ? (
+                    <a href={`mailto:${selectedLead.email}`} className="font-semibold text-gray-900 hover:underline">
+                      {selectedLead.email}
+                    </a>
+                  ) : (
+                    <p className="font-semibold text-gray-900">-</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Country</p>
+                  <p className="font-semibold text-gray-900">{selectedLead.country || '-'}</p>
+                </div>
                 <div>
                   <p className="text-sm text-gray-600">Phone</p>
                   <a href={`tel:${selectedLead.phone}`} className="font-semibold text-primary-600 hover:underline">
                     {selectedLead.phone}
                   </a>
                 </div>
-                {selectedLead.email && (
-                  <div>
-                    <p className="text-sm text-gray-600">Email</p>
-                    <a href={`mailto:${selectedLead.email}`} className="font-semibold text-primary-600 hover:underline">
-                      {selectedLead.email}
-                    </a>
-                  </div>
-                )}
-                {selectedLead.country && (
-                  <div>
-                    <p className="text-sm text-gray-600">Country</p>
-                    <p className="font-semibold text-gray-900">{selectedLead.country}</p>
-                  </div>
-                )}
-                {selectedLead.product && (
-                  <div>
-                    <p className="text-sm text-gray-600">Product</p>
-                    <p className="font-semibold text-gray-900">{selectedLead.product}</p>
-                  </div>
-                )}
+                <div>
+                  <p className="text-sm text-gray-600">Product</p>
+                  <p className="font-semibold text-gray-900">{selectedLead.product || '-'}</p>
+                </div>
               </div>
             </div>
 
@@ -266,7 +452,7 @@ const MyLeads = () => {
                 >
                   <option value="fresh">Fresh</option>
                   <option value="follow-up">Follow-up</option>
-                  <option value="closed">Closed</option>
+                  <option value="closed">Registered</option>
                   <option value="dead">Dead</option>
                   <option value="cancelled">Cancelled</option>
                   <option value="rejected">Rejected</option>
@@ -310,7 +496,7 @@ const MyLeads = () => {
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-2">Activity History</h3>
                   <div className="max-h-48 overflow-y-auto space-y-2">
-                    {selectedLead.activities.map((activity) => (
+                    {[...selectedLead.activities].sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).map((activity) => (
                       <div key={activity.id} className="p-3 bg-gray-50 rounded-lg text-sm">
                         <p className="font-medium text-gray-900">{activity.type}</p>
                         <p className="text-gray-600">{activity.description}</p>

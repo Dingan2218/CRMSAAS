@@ -1,4 +1,4 @@
-import { User, Lead } from '../models/index.js';
+import { User, Lead, Company } from '../models/index.js';
 import { Op } from 'sequelize';
 
 // @desc    Get all salespeople
@@ -30,11 +30,28 @@ export const getSalespeople = async (req, res) => {
 };
 
 // @desc    Create salesperson
-// @route   POST /api/users/salespeople
-// @access  Private/Admin
 export const createSalesperson = async (req, res) => {
   try {
     const { name, email, password, phone, monthlyTarget, weeklyTarget } = req.body;
+    const adminUser = req.user; // Set by protect middleware
+
+    // Check Company Limit
+    if (adminUser.companyId) {
+      const company = await Company.findByPk(adminUser.companyId);
+      const currentSalespeople = await User.count({
+        where: {
+          companyId: adminUser.companyId,
+          role: 'salesperson' // Only counting sales users towards limit? Usually yes.
+        }
+      });
+
+      if (company && company.maxUsers && currentSalespeople >= company.maxUsers) {
+        return res.status(403).json({
+          success: false,
+          message: `User limit reached (${company.maxUsers}). Please contact your administrator to upgrade.`
+        });
+      }
+    }
 
     const userExists = await User.findOne({ where: { email } });
     if (userExists) {
@@ -122,12 +139,23 @@ export const updateSalesperson = async (req, res) => {
 export const deactivateSalesperson = async (req, res) => {
   try {
     const { id } = req.params;
+    const { hard } = req.query;
 
     const user = await User.findByPk(id);
     if (!user) {
       return res.status(404).json({
         success: false,
         message: 'User not found'
+      });
+    }
+
+    if (hard === 'true') {
+      await Lead.update({ assignedTo: null }, { where: { assignedTo: id } });
+      await user.destroy();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Salesperson deleted successfully'
       });
     }
 
@@ -167,7 +195,7 @@ export const getSalespersonPerformance = async (req, res) => {
     // Calculate date range
     const now = new Date();
     let startDate;
-    
+
     if (period === 'week') {
       startDate = new Date(now.setDate(now.getDate() - 7));
     } else {
@@ -193,7 +221,7 @@ export const getSalespersonPerformance = async (req, res) => {
       totalRevenue: leads
         .filter(l => l.status === 'closed')
         .reduce((sum, l) => sum + parseFloat(l.value || 0), 0),
-      conversionRate: leads.length > 0 
+      conversionRate: leads.length > 0
         ? ((leads.filter(l => l.status === 'closed').length / leads.length) * 100).toFixed(2)
         : 0
     };

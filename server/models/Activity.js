@@ -38,6 +38,14 @@ const Activity = sequelize.define('Activity', {
   newStatus: {
     type: DataTypes.STRING,
     allowNull: true
+  },
+  oldCountry: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  newCountry: {
+    type: DataTypes.STRING,
+    allowNull: true
   }
 }, {
   timestamps: true

@@ -32,7 +32,7 @@ A full-stack CRM web application that automates lead assignment, manages sales p
 ### Backend
 - Node.js
 - Express.js
-- PostgreSQL
+- PostgreSQL / Supabase
 - Sequelize ORM
 - JWT Authentication
 - Multer (file uploads)

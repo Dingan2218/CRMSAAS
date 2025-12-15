@@ -1,11 +1,71 @@
 import jwt from 'jsonwebtoken';
-import { User } from '../models/index.js';
+import { User, Company } from '../models/index.js';
+import { Op } from 'sequelize';
 
 // Generate JWT Token
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE || '7d'
   });
+};
+
+// @desc    Login user by phone
+// @route   POST /api/auth/login-phone
+// @access  Public
+export const loginByPhone = async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+
+    if (!phone || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide phone and password'
+      });
+    }
+
+    // Normalize phone: trim and try both raw and digits-only to be lenient
+    const normalized = String(phone).trim();
+    const digitsOnly = normalized.replace(/[^0-9]/g, '');
+
+    const user = await User.findOne({
+      where: {
+        [Op.or]: [
+          { phone: normalized },
+          { phone: digitsOnly }
+        ]
+      }
+    });
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+
+    if (!user.isActive) {
+      return res.status(401).json({ success: false, message: 'Account is deactivated. Please contact admin.' });
+    }
+
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+
+    const token = generateToken(user.id);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        monthlyTarget: user.monthlyTarget,
+        weeklyTarget: user.weeklyTarget,
+        token
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
 };
 
 // @desc    Register user
@@ -70,8 +130,12 @@ export const login = async (req, res) => {
       });
     }
 
-    // Check for user
-    const user = await User.findOne({ where: { email } });
+    // Check for user with Company
+    const user = await User.findOne({
+      where: { email },
+      include: [{ model: Company, as: 'company', attributes: ['name', 'logoUrl', 'primaryColor'] }]
+    });
+
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -108,6 +172,7 @@ export const login = async (req, res) => {
         phone: user.phone,
         monthlyTarget: user.monthlyTarget,
         weeklyTarget: user.weeklyTarget,
+        company: user.company, // Send branding info
         token
       }
     });
@@ -242,7 +307,12 @@ export const updateProfile = async (req, res) => {
 export const getMe = async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id, {
-      attributes: { exclude: ['password'] }
+      attributes: { exclude: ['password'] },
+      include: [{
+        model: Company,
+        as: 'company',
+        attributes: ['name', 'logoUrl', 'primaryColor', 'maxUsers', 'subscriptionStatus']
+      }]
     });
 
     res.status(200).json({

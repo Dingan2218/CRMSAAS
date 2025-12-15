@@ -60,6 +60,56 @@ export const uploadLeads = async (req, res) => {
   }
 };
 
+// @desc    Create a single lead manually
+// @route   POST /api/leads
+// @access  Private (Admin/Accountant/Salesperson)
+export const createLead = async (req, res) => {
+  try {
+    const { name, phone, country, email, product, source, value, notes, date, assignedTo } = req.body;
+
+    if (!name || !phone || !country) {
+      return res.status(400).json({ success: false, message: 'Name, phone and country are required' });
+    }
+
+    // Determine assignment rules
+    let assigned = null;
+    if (['admin', 'accountant'].includes(req.user.role)) {
+      // Admin/accountant can assign to a salesperson if provided
+      if (assignedTo) {
+        const user = await User.findByPk(assignedTo);
+        if (user && user.role === 'salesperson' && user.isActive) {
+          assigned = user.id;
+        }
+      }
+    } else if (req.user.role === 'salesperson') {
+      // Salesperson: force assign to self
+      assigned = req.user.id;
+    }
+
+    const created = await Lead.create({
+      name: String(name).trim(),
+      phone: String(phone).trim(),
+      country,
+      email: email || null,
+      product: product || null,
+      source: source || null,
+      value: value !== undefined && value !== null && value !== '' ? Number(value) : 0,
+      notes: notes || null,
+      date: date ? new Date(date) : null,
+      assignedTo: assigned,
+      status: 'fresh'
+    });
+
+    const leadWithUser = await Lead.findByPk(created.id, {
+      include: [{ model: User, as: 'salesperson', attributes: ['id', 'name', 'email'] }]
+    });
+
+    return res.status(201).json({ success: true, data: leadWithUser });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Get all leads (Admin)
 // @route   GET /api/leads
 // @access  Private/Admin
@@ -277,8 +327,8 @@ export const getLead = async (req, res) => {
 export const updateLead = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, notes, lastCalled, value } = req.body;
-    console.log('[updateLead] incoming', { id, status, notes, lastCalled, value });
+    const { status, notes, lastCalled, value, country, product } = req.body;
+    console.log('[updateLead] incoming', { id, status, notes, lastCalled, value, country, product });
 
     const lead = await Lead.findByPk(id);
 
@@ -298,6 +348,7 @@ export const updateLead = async (req, res) => {
     }
 
     const oldStatus = lead.status;
+    const oldCountry = lead.country || null;
 
     // Normalize inputs
     const normalizedLastCalled = (lastCalled === '') ? null
@@ -314,14 +365,24 @@ export const updateLead = async (req, res) => {
       }
     }
 
-    // Update lead
-    await lead.update({
+    // Prepare payload and update lead
+    const updatePayload = {
       status: status || lead.status,
       notes: notes !== undefined ? notes : lead.notes,
       lastCalled: normalizedLastCalled,
       value: normalizedValue,
       closedAt: status === 'closed' ? new Date() : (status && status !== 'closed' ? null : lead.closedAt)
-    });
+    };
+
+    // Country/Product updates if provided
+    if (country !== undefined && country !== '') {
+      updatePayload.country = country;
+    }
+    if (product !== undefined) {
+      updatePayload.product = product;
+    }
+
+    await lead.update(updatePayload);
 
     // Reload to ensure we return the latest persisted values
     await lead.reload();
@@ -336,6 +397,18 @@ export const updateLead = async (req, res) => {
         description: `Status changed from ${oldStatus} to ${status}`,
         oldStatus,
         newStatus: status
+      });
+    }
+
+    // Log activity if country changed
+    if (country !== undefined && country !== '' && country !== oldCountry) {
+      await Activity.create({
+        leadId: lead.id,
+        userId: req.user.id,
+        type: 'note',
+        description: `Country changed from ${oldCountry ?? '-'} to ${country}`,
+        oldCountry: oldCountry,
+        newCountry: country
       });
     }
 
@@ -616,5 +689,64 @@ export const redistributeLeads = async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+// @desc    Manually assign one or many leads to a salesperson
+// @route   POST /api/leads/assign
+// @access  Private/Admin,Accountant
+export const assignLeads = async (req, res) => {
+  try {
+    const { leadIds, assignTo } = req.body;
+
+    if (!assignTo) {
+      return res.status(400).json({ success: false, message: 'assignTo (salesperson user id) is required' });
+    }
+
+    // Validate target salesperson
+    const newOwner = await User.findByPk(assignTo);
+    if (!newOwner || newOwner.role !== 'salesperson' || !newOwner.isActive) {
+      return res.status(400).json({ success: false, message: 'assignTo must be an active salesperson' });
+    }
+
+    const ids = Array.isArray(leadIds) ? leadIds : (leadIds ? [leadIds] : []);
+    if (ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'leadIds array is required' });
+    }
+
+    // Fetch all requested leads
+    const leads = await Lead.findAll({
+      where: { id: { [Op.in]: ids } }
+    });
+
+    if (!leads || leads.length === 0) {
+      return res.status(404).json({ success: false, message: 'No matching leads found' });
+    }
+
+    // Update assignment and log activity
+    await Promise.all(leads.map(async (lead) => {
+      const oldAssigneeId = lead.assignedTo;
+      await lead.update({ assignedTo: newOwner.id });
+      let description = `Assigned to ${newOwner.name}`;
+      if (oldAssigneeId && oldAssigneeId !== newOwner.id) {
+        description = `Reassigned to ${newOwner.name}`;
+      }
+      await Activity.create({
+        leadId: lead.id,
+        userId: req.user.id,
+        type: 'note',
+        description
+      });
+    }));
+
+    // Return updated entities including salesperson details
+    const updated = await Lead.findAll({
+      where: { id: { [Op.in]: ids } },
+      include: [{ model: User, as: 'salesperson', attributes: ['id', 'name', 'email'] }]
+    });
+
+    return res.status(200).json({ success: true, count: updated.length, data: updated });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

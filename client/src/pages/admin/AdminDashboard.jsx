@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { dashboardAPI } from '../../services/api';
+import { dashboardAPI, userAPI } from '../../services/api';
 import StatCard from '../../components/StatCard';
 import StaleLeadsNotification from '../../components/StaleLeadsNotification';
-import { Users, TrendingUp, Phone, IndianRupee, Target, Award } from 'lucide-react';
+import { Users, TrendingUp, Phone, IndianRupee, Target, Award, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, Label, LabelList } from 'recharts';
 import toast from 'react-hot-toast';
 
@@ -10,19 +10,55 @@ const AdminDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const [targetPeriod, setTargetPeriod] = useState('month'); // 'week' | 'month'
+  const [targetsData, setTargetsData] = useState([]);
+  const emptyCounts = { all: 0, fresh: 0, 'follow-up': 0, rnr: 0, closed: 0, dead: 0, cancelled: 0, rejected: 0 };
+  const [dailyCounts, setDailyCounts] = useState(emptyCounts);
+  const [monthlyCounts, setMonthlyCounts] = useState(emptyCounts);
+  const [weeklyCounts, setWeeklyCounts] = useState(emptyCounts);
+
+  const [popupData, setPopupData] = useState(null);
 
   useEffect(() => {
     fetchDashboard();
+    fetchStatusBoards();
+    fetchGlobalPopup(); // New
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const fetchGlobalPopup = async () => {
+    try {
+      const res = await dashboardAPI.getActivePopup();
+      const popup = res.data.data;
+      if (popup && popup.isActive) {
+        // Check dismissal
+        const dismissed = localStorage.getItem(`dismissed_popup_${popup.id}`);
+        if (!dismissed) {
+          setPopupData(popup);
+        }
+      }
+    } catch (error) {
+      console.error('Popup fetch failed', error);
+    }
+  };
+
+  const dismissPopup = () => {
+    if (popupData) {
+      localStorage.setItem(`dismissed_popup_${popupData.id}`, 'true');
+      setPopupData(null);
+    }
+  };
+
   const fetchDashboard = async () => {
     try {
       const response = await dashboardAPI.getAdminDashboard();
-      setDashboardData(response.data.data);
+      const base = response.data.data || {};
+      setDashboardData(base);
+      // Build initial targets dataset for current period (defaults to month)
+      await buildTargets('month');
     } catch (error) {
       toast.error('Failed to load dashboard');
       console.error(error);
@@ -30,6 +66,108 @@ const AdminDashboard = () => {
       setLoading(false);
     }
   };
+
+  // Local component: non-interactive chips matching AllLeads styles
+  const StatusChips = ({ counts }) => {
+    const items = [
+      { key: '', label: 'All', color: 'bg-gray-100 text-gray-800' },
+      { key: 'fresh', label: 'Fresh', color: 'bg-white border-2 border-gray-300' },
+      { key: 'follow-up', label: 'Follow-up', color: 'bg-orange-100 text-orange-800' },
+      { key: 'rnr', label: 'RNR', color: 'bg-purple-100 text-purple-800' },
+      { key: 'closed', label: 'Registered', color: 'bg-green-100 text-green-800' },
+      { key: 'dead', label: 'Dead', color: 'bg-red-100 text-red-800' },
+      { key: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800' },
+      { key: 'rejected', label: 'Rejected', color: 'bg-red-100 text-red-800' }
+    ];
+
+    return (
+      <>
+        {/* Mobile/Tablet grid */}
+        <div className="grid grid-cols-4 gap-2 lg:hidden">
+          {items.map((tab) => (
+            <div
+              key={tab.key || 'all'}
+              className={`inline-flex items-center justify-center w-full h-7 px-2 py-0.5 text-[10px] rounded-full font-medium whitespace-nowrap ${tab.color}`}
+            >
+              {tab.label} ({counts?.[tab.key || 'all'] ?? 0})
+            </div>
+          ))}
+        </div>
+        {/* Desktop horizontal chips */}
+        <div className="hidden lg:flex flex-wrap gap-2 mt-1">
+          {items.map((tab) => (
+            <div
+              key={`lg-${tab.key || 'all'}`}
+              className={`inline-flex items-center justify-center h-8 px-3 rounded-full text-sm font-medium whitespace-nowrap shadow-sm border ${tab.color}`}
+            >
+              {tab.label} ({counts?.[tab.key || 'all'] ?? 0})
+            </div>
+          ))}
+        </div>
+      </>
+    );
+  };
+
+  // Fetch status counts for Daily, Weekly, Monthly (each independently to avoid failing all)
+  const fetchStatusBoards = async () => {
+    let anyFailed = false;
+    // Daily
+    try {
+      const dRes = await dashboardAPI.getStatusCounts('daily');
+      setDailyCounts(dRes?.data?.statusCounts || emptyCounts);
+    } catch (err) {
+      anyFailed = true;
+      setDailyCounts(emptyCounts);
+      console.warn('Daily status counts unavailable:', err?.response?.status || err?.message);
+    }
+    // Weekly
+    try {
+      const wRes = await dashboardAPI.getStatusCounts('weekly');
+      setWeeklyCounts(wRes?.data?.statusCounts || emptyCounts);
+    } catch (err) {
+      anyFailed = true;
+      setWeeklyCounts(emptyCounts);
+      console.warn('Weekly status counts unavailable:', err?.response?.status || err?.message);
+    }
+    // Monthly
+    try {
+      const mRes = await dashboardAPI.getStatusCounts('monthly');
+      setMonthlyCounts(mRes?.data?.statusCounts || emptyCounts);
+    } catch (err) {
+      anyFailed = true;
+      setMonthlyCounts(emptyCounts);
+      console.warn('Monthly status counts unavailable:', err?.response?.status || err?.message);
+    }
+    if (anyFailed) {
+      // Show a single toast only once per load cycle
+      toast.error('Status boards unavailable (server endpoint not found).');
+    }
+  };
+
+  const buildTargets = async (period) => {
+    const [lbRes, spRes] = await Promise.all([
+      dashboardAPI.getLeaderboard(period === 'week' ? 'week' : 'month'),
+      userAPI.getSalespeople()
+    ]);
+    const leaderboard = lbRes.data?.data || [];
+    const salespeople = spRes.data?.data || [];
+    const conversionsById = new Map(leaderboard.map(r => [r.id, parseInt(r.closedLeads || 0)]));
+    const merged = salespeople.map(u => ({
+      id: u.id,
+      name: u.name,
+      conversions: conversionsById.get(u.id) || 0,
+      target: parseInt((period === 'week' ? u.weeklyTarget : u.monthlyTarget) || 0)
+    }));
+    // Sort by conversions desc
+    merged.sort((a, b) => b.conversions - a.conversions);
+    setTargetsData(merged);
+  };
+
+  // Rebuild targets when user switches period
+  useEffect(() => {
+    buildTargets(targetPeriod);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetPeriod]);
 
   if (loading) {
     return (
@@ -74,10 +212,29 @@ const AdminDashboard = () => {
     <div className="space-y-6">
       {/* Stale Leads Notification */}
       <StaleLeadsNotification />
-      
+
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
         <p className="text-gray-600 mt-1">Overview of your CRM performance</p>
+      </div>
+
+      {/* Lead Status Boards: Daily, Weekly, Monthly */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Daily */}
+        <div className="card">
+          <h2 className="text-xl font-semibold text-gray-900 mb-3">Daily Lead Status</h2>
+          <StatusChips counts={dailyCounts} />
+        </div>
+        {/* Weekly */}
+        <div className="card">
+          <h2 className="text-xl font-semibold text-gray-900 mb-3">Weekly Lead Status</h2>
+          <StatusChips counts={weeklyCounts} />
+        </div>
+        {/* Monthly */}
+        <div className="card">
+          <h2 className="text-xl font-semibold text-gray-900 mb-3">Monthly Lead Status</h2>
+          <StatusChips counts={monthlyCounts} />
+        </div>
       </div>
 
       {/* Stats Grid */}
@@ -184,19 +341,65 @@ const AdminDashboard = () => {
 
         {/* Top Performers */}
         <div className="card overflow-visible">
-          <h2 className="text-xl font-semibold text-gray-900">Top Closers</h2>
-          <p className="text-sm text-gray-500 mb-4">Ranked by closed leads this month</p>
+          <h2 className="text-xl font-semibold text-gray-900">Top Registrations</h2>
+          <p className="text-sm text-gray-500 mb-4">Ranked by registered leads this month</p>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={topPerformers} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" tick={{ fontSize: isMobile ? 10 : 12 }} />
-              <YAxis width={isMobile ? 30 : 40} allowDecimals={false} label={{ value: 'Closings', angle: -90, position: 'insideLeft', offset: 10 }} />
-              <Tooltip formatter={(value) => [`${value} closes`, 'Closed Leads']} />
-              <Bar dataKey="closedLeads" fill="#10b981" name="Closed Leads" barSize={isMobile ? 28 : 32} radius={[6, 6, 0, 0]}>
+              <YAxis width={isMobile ? 30 : 40} allowDecimals={false} label={{ value: 'Registrations', angle: -90, position: 'insideLeft', offset: 10 }} />
+              <Tooltip formatter={(value) => [`${value} registrations`, 'Registered Leads']} />
+              <Bar dataKey="closedLeads" fill="#10b981" name="Registered Leads" barSize={isMobile ? 28 : 32} radius={[6, 6, 0, 0]}>
                 <LabelList dataKey="closedLeads" position="top" fill="#047857" formatter={(val) => `${val}`} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Targets Table: Salesperson | Conversions | Target */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">Targets ({targetPeriod === 'week' ? 'This Week' : 'This Month'})</h2>
+          <div className="inline-flex p-1 bg-gray-100 rounded-full">
+            <button
+              className={`px-3 py-1 text-sm rounded-full ${targetPeriod === 'week' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
+              onClick={() => setTargetPeriod('week')}
+            >
+              Weekly
+            </button>
+            <button
+              className={`ml-1 px-3 py-1 text-sm rounded-full ${targetPeriod === 'month' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
+              onClick={() => setTargetPeriod('month')}
+            >
+              Monthly
+            </button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salesperson</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Conversions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {(targetsData || []).map((row) => (
+                <tr key={row.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{row.name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{Number(row.conversions || 0)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{Number(row.target || 0)}</td>
+                </tr>
+              ))}
+              {(!targetsData || targetsData.length === 0) && (
+                <tr>
+                  <td colSpan={3} className="px-6 py-6 text-center text-sm text-gray-500">No data</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -217,7 +420,7 @@ const AdminDashboard = () => {
                   Salesperson
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Closings
+                  Registrations
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Revenue (₹)
@@ -254,6 +457,29 @@ const AdminDashboard = () => {
           </table>
         </div>
       </div>
+      {popupData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in duration-300">
+            <div className="bg-blue-600 px-6 py-4 flex justify-between items-center">
+              <h3 className="text-white font-bold text-lg">{popupData.title}</h3>
+              <button onClick={dismissPopup} className="text-white/80 hover:text-white transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-700 whitespace-pre-wrap">{popupData.content}</p>
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={dismissPopup}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

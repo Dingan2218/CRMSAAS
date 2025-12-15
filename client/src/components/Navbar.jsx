@@ -30,8 +30,15 @@ const Navbar = () => {
               <Menu className="h-5 w-5 text-gray-700" />
             </button>
 
-            <Link to={homePath} className="flex items-center">
-              <img src={logo} alt="Company Logo" className="h-8 md:h-10 w-auto shrink-0" />
+            <Link to={homePath} className="flex items-center gap-3">
+              {user?.company?.logoUrl ? (
+                <img src={user.company.logoUrl} alt={user.company.name} className="h-8 md:h-10 w-auto shrink-0" />
+              ) : (
+                <img src={logo} alt="Default Logo" className="h-8 md:h-10 w-auto shrink-0" />
+              )}
+              {user?.company?.name && (
+                <span className="hidden md:block font-bold text-gray-800 text-lg">{user.company.name}</span>
+              )}
             </Link>
           </div>
 
@@ -53,7 +60,7 @@ const Navbar = () => {
                 <span className="hidden sm:inline text-sm md:text-base">Settings</span>
               </Link>
             )}
-            
+
             <button
               onClick={handleLogout}
               className="flex items-center space-x-1 md:space-x-2 text-gray-700 hover:text-red-600 transition-colors"

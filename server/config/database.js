@@ -18,7 +18,7 @@ const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
   port: Number(DB_PORT),
   dialect: 'postgres',
   logging: false,
-  dialectOptions: DB_SSL === 'true' ? { ssl: { require: true, rejectUnauthorized: false } } : {}
+  dialectOptions: (DB_SSL === 'true' || process.env.NODE_ENV === 'production') ? { ssl: { require: true, rejectUnauthorized: false } } : {}
 });
 
 export const connectDB = async () => {
@@ -26,7 +26,8 @@ export const connectDB = async () => {
     await sequelize.authenticate();
     console.log('✅ PostgreSQL connected successfully');
     // Apply model changes to DB schema automatically in dev
-    await sequelize.sync({ alter: true });
+    // Changed to false to prevent ENUM casting errors. Use force: true (manual script) for major schema changes.
+    await sequelize.sync({ alter: false });
     console.log('✅ Database synchronized');
   } catch (error) {
     console.error('❌ Database connection error:', error);

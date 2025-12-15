@@ -30,6 +30,14 @@ CREATE DATABASE crm_database;
 \q
 ```
 
+### Option B: Use Supabase (Cloud)
+
+1. Create a project at [Supabase](https://supabase.com).
+2. Go to Project Settings -> Database.
+3. Get your Connection String (Node.js/URI).
+4. You will need: Host, Database Name, Port, User, Password.
+
+
 ### 3️⃣ Backend Setup
 
 ```bash
@@ -63,6 +71,12 @@ JWT_EXPIRE=7d
 
 ADMIN_EMAIL=admin@rmaverseas.com
 ADMIN_PASSWORD=admin123
+
+# For Supabase:
+# DB_HOST=db.ref.supabase.co
+# DB_PASSWORD=[your-password]
+# DB_SSL=true
+
 ```
 
 **Start Backend Server:**

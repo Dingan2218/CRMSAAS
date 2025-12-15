@@ -13,6 +13,8 @@ import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import leadRoutes from './routes/leadRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
+import superAdminRoutes from './routes/superAdminRoutes.js';
+import popupRoutes from './routes/popupRoutes.js';
 
 const app = express();
 
@@ -22,6 +24,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Enable CORS
 app.use(cors());
+// Handle CORS preflight requests for all routes
+app.options('*', cors());
 
 // Connect to database
 connectDB();
@@ -31,6 +35,7 @@ const createDefaultAdmin = async () => {
   try {
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminPassword = process.env.ADMIN_PASSWORD;
+    const adminRole = (process.env.ADMIN_ROLE === 'super_admin') ? 'super_admin' : 'admin';
 
     if (!adminEmail || !adminPassword) {
       console.error('❌ ADMIN_EMAIL and ADMIN_PASSWORD must be set in .env file');
@@ -57,7 +62,7 @@ const createDefaultAdmin = async () => {
         name: 'Admin',
         email: adminEmail,
         password: adminPassword,
-        role: 'admin',
+        role: adminRole,
         phone: '1234567890'
       });
       console.log('✅ Default admin user created from .env credentials');
@@ -82,6 +87,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/leads', leadRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/super-admin', superAdminRoutes);
+app.use('/api', popupRoutes);
 
 // Health check route (includes DB status and dialect)
 app.get('/api/health', async (req, res) => {
@@ -119,3 +126,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
+// Server refreshed for updates - 3

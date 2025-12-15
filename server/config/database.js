@@ -20,7 +20,8 @@ const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
   dialect: 'postgres',
   dialectModule: pg, // Required for Vercel/Serverless
   logging: false,
-  dialectOptions: (DB_SSL === 'true' || process.env.NODE_ENV === 'production') ? { ssl: { require: true, rejectUnauthorized: false } } : {}
+  // Only use SSL if explicitly requested. Some production setups might use private networking without SSL.
+  dialectOptions: (DB_SSL === 'true') ? { ssl: { require: true, rejectUnauthorized: false } } : {}
 });
 
 export const connectDB = async () => {

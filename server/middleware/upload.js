@@ -7,8 +7,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '../../uploads');
-if (!fs.existsSync(uploadsDir)) {
+// In Vercel/serverless, use /tmp (only writable location)
+const uploadsDir = process.env.VERCEL === '1'
+  ? '/tmp/uploads'
+  : path.join(__dirname, '../../uploads');
+
+// Only try to create directory if not in Vercel (Vercel auto-handles /tmp)
+if (process.env.VERCEL !== '1' && !fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
@@ -25,7 +30,7 @@ const storage = multer.diskStorage({
 const fileFilter = (req, file, cb) => {
   const allowedTypes = ['.csv', '.xlsx', '.xls'];
   const ext = path.extname(file.originalname).toLowerCase();
-  
+
   if (allowedTypes.includes(ext)) {
     cb(null, true);
   } else {

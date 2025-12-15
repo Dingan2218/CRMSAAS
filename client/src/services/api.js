@@ -12,7 +12,7 @@ const API_URL = (
   import.meta.env.VITE_API_URL ||
   devDefault ||
   inferredLocal ||
-  'https://crm.rmaoverseas.com/api'
+  '/api'
 );
 
 if (import.meta.env?.DEV) {

@@ -14,6 +14,15 @@ const {
   DB_SSL = 'false'
 } = process.env;
 
+console.log('🔍 DB Config:', {
+  host: DB_HOST,
+  port: DB_PORT,
+  name: DB_NAME,
+  user: DB_USER,
+  ssl: DB_SSL,
+  node_env: process.env.NODE_ENV
+});
+
 const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
   host: DB_HOST,
   port: Number(DB_PORT),

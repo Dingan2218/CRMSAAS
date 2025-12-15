@@ -37,14 +37,17 @@ export const connectDB = async () => {
   try {
     await sequelize.authenticate();
     console.log('✅ PostgreSQL connected successfully');
-    // Apply model changes to DB schema automatically in dev
-    // Changed to false to prevent ENUM casting errors. Use force: true (manual script) for major schema changes.
-    await sequelize.sync({ alter: false });
-    console.log('✅ Database synchronized');
+
+    // Skip sync in Vercel/serverless - tables should already exist
+    if (process.env.VERCEL !== '1') {
+      await sequelize.sync({ alter: false });
+      console.log('✅ Database synchronized');
+    } else {
+      console.log('⚡ Skipping sync in serverless environment');
+    }
   } catch (error) {
     console.error('❌ Database connection error:', error);
-    // process.exit(1); // Do not exit in serverless; let the request fail with a 500 but keep the container alive if possible, or usually it will just restart.
-    // If we throw here, it might be unhandled. Better to just let it be logged.
+    throw error; // Throw to make the error visible in Vercel logs
   }
 };
 

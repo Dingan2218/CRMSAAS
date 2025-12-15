@@ -33,7 +33,15 @@ const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
   dialectOptions: (DB_SSL === 'true') ? { ssl: { require: true, rejectUnauthorized: false } } : {}
 });
 
+let isConnected = false;
+
 export const connectDB = async () => {
+  // Skip if already connected (reuse connection in warm containers)
+  if (isConnected) {
+    console.log('♻️ Reusing existing DB connection');
+    return;
+  }
+
   try {
     await sequelize.authenticate();
     console.log('✅ PostgreSQL connected successfully');
@@ -45,6 +53,8 @@ export const connectDB = async () => {
     } else {
       console.log('⚡ Skipping sync in serverless environment');
     }
+
+    isConnected = true;
   } catch (error) {
     console.error('❌ Database connection error:', error);
     throw error; // Throw to make the error visible in Vercel logs

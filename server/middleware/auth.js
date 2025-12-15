@@ -1,8 +1,12 @@
 import jwt from 'jsonwebtoken';
 import { User } from '../models/index.js';
+import { connectDB } from '../config/database.js';
 
 export const protect = async (req, res, next) => {
   try {
+    // Ensure DB is connected (no-op if already connected)
+    await connectDB();
+
     let token;
 
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
@@ -10,9 +14,9 @@ export const protect = async (req, res, next) => {
     }
 
     if (!token) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Not authorized to access this route' 
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized to access this route'
       });
     }
 
@@ -23,30 +27,30 @@ export const protect = async (req, res, next) => {
       });
 
       if (!req.user) {
-        return res.status(401).json({ 
-          success: false, 
-          message: 'User not found' 
+        return res.status(401).json({
+          success: false,
+          message: 'User not found'
         });
       }
 
       if (!req.user.isActive) {
-        return res.status(401).json({ 
-          success: false, 
-          message: 'User account is deactivated' 
+        return res.status(401).json({
+          success: false,
+          message: 'User account is deactivated'
         });
       }
 
       next();
     } catch (error) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Not authorized to access this route' 
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized to access this route'
       });
     }
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error in authentication' 
+    res.status(500).json({
+      success: false,
+      message: 'Server error in authentication'
     });
   }
 };

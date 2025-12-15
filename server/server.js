@@ -27,8 +27,11 @@ app.use(cors());
 // Handle CORS preflight requests for all routes
 app.options('*', cors());
 
-// Connect to database
-connectDB();
+// Connect to database (lazy - will connect on first request)
+// In Vercel, this is deferred to avoid blocking cold starts
+if (process.env.VERCEL !== '1') {
+  connectDB();
+}
 
 // Create default admin user
 const createDefaultAdmin = async () => {

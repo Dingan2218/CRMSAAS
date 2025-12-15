@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { User, Company } from '../models/index.js';
 import { Op } from 'sequelize';
+import { connectDB } from '../config/database.js';
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -14,6 +15,9 @@ const generateToken = (id) => {
 // @access  Public
 export const loginByPhone = async (req, res) => {
   try {
+    // Ensure DB is connected (no-op if already connected)
+    await connectDB();
+
     const { phone, password } = req.body;
 
     if (!phone || !password) {

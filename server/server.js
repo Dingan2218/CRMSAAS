@@ -79,8 +79,10 @@ const createDefaultAdmin = async () => {
   }
 };
 
-// Initialize default admin after DB connection
-setTimeout(createDefaultAdmin, 2000);
+// Initialize default admin after DB connection (Only in persistent environments)
+if (process.env.VERCEL !== '1') {
+  setTimeout(createDefaultAdmin, 2000);
+}
 
 // Mount routes
 app.use('/api/auth', authRoutes);

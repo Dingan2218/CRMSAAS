@@ -7,13 +7,24 @@ const isLocalhost = (typeof window !== 'undefined') && (
 );
 const inferredLocal = isLocalhost ? 'http://localhost:5000/api' : null;
 const devDefault = import.meta.env?.DEV ? 'http://localhost:5000/api' : null;
-const API_URL = (
+const initialUrl = (
   localStorageOverride ||
   import.meta.env.VITE_API_URL ||
   devDefault ||
   inferredLocal ||
   '/api'
 );
+
+// Safety Check: If we are on HTTPS (Production/Vercel) and the resolved URL is HTTP Localhost,
+// it is almost certainly a misconfiguration. Force fallback to relative '/api' path.
+let validUrl = initialUrl;
+if (typeof window !== 'undefined' && window.location.protocol === 'https:' && validUrl.includes('localhost')) {
+  // eslint-disable-next-line no-console
+  console.warn('⚠️ Defaulting API to "/api" because localhost is invalid in HTTPS environment.');
+  validUrl = '/api';
+}
+
+const API_URL = validUrl;
 
 if (import.meta.env?.DEV) {
   // Helpful debug in dev to ensure we are pointing at the intended API

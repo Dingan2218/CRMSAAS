@@ -1,4 +1,5 @@
 import { Sequelize } from 'sequelize';
+import pg from 'pg'; // Explicitly load pg driver for Serverless/Vercel
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -17,6 +18,7 @@ const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
   host: DB_HOST,
   port: Number(DB_PORT),
   dialect: 'postgres',
+  dialectModule: pg, // Required for Vercel/Serverless
   logging: false,
   dialectOptions: (DB_SSL === 'true' || process.env.NODE_ENV === 'production') ? { ssl: { require: true, rejectUnauthorized: false } } : {}
 });
@@ -31,7 +33,8 @@ export const connectDB = async () => {
     console.log('✅ Database synchronized');
   } catch (error) {
     console.error('❌ Database connection error:', error);
-    process.exit(1);
+    // process.exit(1); // Do not exit in serverless; let the request fail with a 500 but keep the container alive if possible, or usually it will just restart.
+    // If we throw here, it might be unhandled. Better to just let it be logged.
   }
 };
 

@@ -61,6 +61,12 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Don't logout on connection errors, timeouts, or aborted requests
+    if (!error.response) {
+      // Network error, timeout, or aborted request - just return the error
+      return Promise.reject(error);
+    }
+
     const status = error.response?.status;
     const url = error.config?.url || '';
     const message = error.response?.data?.message || '';
@@ -205,5 +211,6 @@ export const superAdminAPI = {
   deleteMessage: (id) => api.delete(`/super-admin/messages/${id}`),
   updateLimit: (id, maxUsers) => api.put(`/super-admin/companies/${id}/limit`, { maxUsers }),
   updateCompany: (id, data) => api.put(`/super-admin/companies/${id}`, data),
-  deleteCompany: (id) => api.delete(`/super-admin/companies/${id}`)
+  deleteCompany: (id) => api.delete(`/super-admin/companies/${id}`),
+  getStats: () => api.get('/super-admin/stats')
 };

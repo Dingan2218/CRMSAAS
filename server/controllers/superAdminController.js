@@ -184,16 +184,37 @@ export const updateCompanyLimit = async (req, res) => {
 export const updateCompany = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, logoUrl, primaryColor } = req.body;
+        const { name, logoUrl, primaryColor, adminEmail, adminPassword } = req.body;
 
         const company = await Company.findByPk(id);
         if (!company) {
             return res.status(404).json({ success: false, message: 'Company not found' });
         }
 
+        // Update company details
         company.name = name || company.name;
         company.logoUrl = logoUrl !== undefined ? logoUrl : company.logoUrl;
         company.primaryColor = primaryColor || company.primaryColor;
+
+        // Update admin credentials if provided
+        if (adminEmail || adminPassword) {
+            // Find the admin user associated with this company
+            const adminUser = await User.findOne({
+                where: {
+                    companyId: id,
+                    role: 'admin'
+                }
+            });
+
+            if (adminUser) {
+                if (adminEmail) adminUser.email = adminEmail;
+                if (adminPassword) adminUser.password = adminPassword; // User model will hash it via hooks
+                await adminUser.save();
+            } else {
+                // Handle case where admin user is not found (e.g., log, return error)
+                console.warn(`Admin user not found for company ID: ${id}. Admin credentials not updated.`);
+            }
+        }
 
         await company.save();
 
@@ -249,6 +270,24 @@ export const deleteCompany = async (req, res) => {
             success: true,
             message: `Company '${company.name}' and ${userCount} associated user(s) deleted successfully`
         });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// @desc    Get subscription statistics
+// @route   GET /api/super-admin/stats
+// @access  Super Admin
+export const getStats = async (req, res) => {
+    try {
+        const [totalCompanies, trialCompanies, activeCompanies, expiredCompanies] = await Promise.all([
+            Company.count(),
+            Company.count({ where: { subscriptionStatus: 'trial' } }),
+            Company.count({ where: { subscriptionStatus: 'active' } }),
+            Company.count({ where: { subscriptionStatus: 'expired' } })
+        ]);
+        const totalUsers = await User.count();
+        res.status(200).json({ success: true, data: { totalCompanies, trial: trialCompanies, active: activeCompanies, expired: expiredCompanies, totalUsers } });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

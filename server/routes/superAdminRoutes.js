@@ -2,7 +2,7 @@ import express from 'express';
 import { protect, authorize } from '../middleware/auth.js';
 import {
     createCompany, getCompanies, updateCompanySubscription,
-    createPopup, getPopups, togglePopup, deletePopup, updateCompanyLimit, updateCompany, deleteCompany
+    createPopup, getPopups, togglePopup, deletePopup, updateCompanyLimit, updateCompany, deleteCompany, getStats
 } from '../controllers/superAdminController.js';
 
 const router = express.Router();
@@ -10,6 +10,9 @@ const router = express.Router();
 // Protect all routes
 router.use(protect);
 router.use(authorize('super_admin'));
+
+router.route('/stats')
+    .get(getStats);
 
 router.route('/companies')
     .get(getCompanies)

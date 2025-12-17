@@ -122,6 +122,20 @@ const SuperAdminDashboard = () => {
         }
     };
 
+    const handleDeleteCompany = async (company) => {
+        const confirmMessage = `Are you sure you want to delete "${company.name}"?\n\nThis will permanently delete:\n- The company\n- All associated users\n- All associated leads\n\nThis action CANNOT be undone!`;
+
+        if (!window.confirm(confirmMessage)) return;
+
+        try {
+            const res = await superAdminAPI.deleteCompany(company.id);
+            toast.success(res.data.message || 'Company deleted successfully');
+            fetchCompanies();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to delete company');
+        }
+    };
+
     const handleMsgSubmit = async (e) => {
         e.preventDefault();
         try {
@@ -291,13 +305,22 @@ const SuperAdminDashboard = () => {
                                                     {admin?.phone && <div className="text-xs text-gray-400">{admin.phone}</div>}
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    <button
-                                                        onClick={() => handleEditClick(company)}
-                                                        className="text-indigo-600 hover:text-indigo-900 text-xs font-medium flex items-center justify-end gap-1 ml-auto"
-                                                    >
-                                                        <Pencil className="h-3 w-3" />
-                                                        Manage
-                                                    </button>
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button
+                                                            onClick={() => handleEditClick(company)}
+                                                            className="text-indigo-600 hover:text-indigo-900 text-xs font-medium flex items-center gap-1"
+                                                        >
+                                                            <Pencil className="h-3 w-3" />
+                                                            Edit
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteCompany(company)}
+                                                            className="text-red-600 hover:text-red-900 text-xs font-medium flex items-center gap-1"
+                                                        >
+                                                            <Trash2 className="h-3 w-3" />
+                                                            Delete
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );

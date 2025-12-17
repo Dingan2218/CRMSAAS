@@ -189,5 +189,6 @@ export const superAdminAPI = {
   toggleMessage: (id) => api.put(`/super-admin/messages/${id}`),
   deleteMessage: (id) => api.delete(`/super-admin/messages/${id}`),
   updateLimit: (id, maxUsers) => api.put(`/super-admin/companies/${id}/limit`, { maxUsers }),
-  updateCompany: (id, data) => api.put(`/super-admin/companies/${id}`, data)
+  updateCompany: (id, data) => api.put(`/super-admin/companies/${id}`, data),
+  deleteCompany: (id) => api.delete(`/super-admin/companies/${id}`)
 };

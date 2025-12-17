@@ -226,3 +226,30 @@ export const getCompanies = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+// @desc    Delete a company and all associated data
+// @route   DELETE /api/super-admin/companies/:id
+// @access  Super Admin
+export const deleteCompany = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const company = await Company.findByPk(id);
+        if (!company) {
+            return res.status(404).json({ success: false, message: 'Company not found' });
+        }
+
+        // Get count of associated users before deletion
+        const userCount = await User.count({ where: { companyId: id } });
+
+        // Delete company (will cascade delete users and leads due to foreign key constraints)
+        await company.destroy();
+
+        res.status(200).json({
+            success: true,
+            message: `Company '${company.name}' and ${userCount} associated user(s) deleted successfully`
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};

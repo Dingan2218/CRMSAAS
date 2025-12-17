@@ -2,7 +2,7 @@ import express from 'express';
 import { protect, authorize } from '../middleware/auth.js';
 import {
     createCompany, getCompanies, updateCompanySubscription,
-    createPopup, getPopups, togglePopup, deletePopup, updateCompanyLimit, updateCompany
+    createPopup, getPopups, togglePopup, deletePopup, updateCompanyLimit, updateCompany, deleteCompany
 } from '../controllers/superAdminController.js';
 
 const router = express.Router();
@@ -16,7 +16,8 @@ router.route('/companies')
     .post(createCompany);
 
 router.route('/companies/:id')
-    .put(updateCompany);
+    .put(updateCompany)
+    .delete(deleteCompany);
 
 router.route('/companies/:id/subscription')
     .put(updateCompanySubscription);

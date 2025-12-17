@@ -74,14 +74,20 @@ api.interceptors.response.use(
 
     // Only logout on actual token expiration/invalid token, not on permission errors
     if (status === 401 && !isAuthEndpoint) {
-      // Check if it's a token expiration or invalid token (not just unauthorized action)
-      const isTokenError = message.includes('token') ||
-        message.includes('expired') ||
-        message.includes('invalid') ||
-        message.includes('Not authorized to access');
+      // Check for clear token/JWT problems only
+      const lower = String(message || '').toLowerCase();
+      const isTokenError = (
+        (lower.includes('token') && (lower.includes('expired') || lower.includes('invalid')))
+      ) ||
+        lower.includes('jwt expired') ||
+        lower.includes('jwt malformed') ||
+        lower.includes('invalid signature') ||
+        lower.includes('jwt not active');
 
-      // Only logout if it's actually a token problem
       if (isTokenError) {
+        // Helpful debug to understand why we logged out
+        // eslint-disable-next-line no-console
+        console.warn('[API] Auto-logout due to token error:', message);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         if (typeof window !== 'undefined' && window.location?.pathname !== '/login') {

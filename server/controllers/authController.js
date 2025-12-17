@@ -14,9 +14,11 @@ const generateToken = (id) => {
 // @access  Public
 export const loginByPhone = async (req, res) => {
   try {
+    console.info('[AUTH] POST /auth/login-phone - start');
     const { phone, password } = req.body;
 
     if (!phone || !password) {
+      console.warn('[AUTH] /auth/login-phone - missing phone or password');
       return res.status(400).json({
         success: false,
         message: 'Please provide phone and password'
@@ -27,6 +29,7 @@ export const loginByPhone = async (req, res) => {
     const normalized = String(phone).trim();
     const digitsOnly = normalized.replace(/[^0-9]/g, '');
 
+    console.info('[AUTH] /auth/login-phone - lookup by phone variants', { normalized, digitsOnly });
     const user = await User.findOne({
       where: {
         [Op.or]: [
@@ -35,19 +38,23 @@ export const loginByPhone = async (req, res) => {
         ]
       }
     });
+    console.info('[AUTH] /auth/login-phone - user found:', Boolean(user));
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
     if (!user.isActive) {
+      console.warn('[AUTH] /auth/login-phone - user inactive', { userId: user.id });
       return res.status(401).json({ success: false, message: 'Account is deactivated. Please contact admin.' });
     }
 
+    console.info('[AUTH] /auth/login-phone - comparing password', { userId: user.id });
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
+    console.info('[AUTH] /auth/login-phone - generating token', { userId: user.id });
     const token = generateToken(user.id);
 
     res.status(200).json({
@@ -64,6 +71,7 @@ export const loginByPhone = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('[AUTH] /auth/login-phone - error', { message: error.message, stack: error.stack });
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -120,10 +128,12 @@ export const register = async (req, res) => {
 // @access  Public
 export const login = async (req, res) => {
   try {
+    console.info('[AUTH] POST /auth/login - start');
     const { email, password } = req.body;
 
     // Validate input
     if (!email || !password) {
+      console.warn('[AUTH] /auth/login - missing email or password');
       return res.status(400).json({
         success: false,
         message: 'Please provide email and password'
@@ -131,11 +141,13 @@ export const login = async (req, res) => {
     }
 
     // Check for user with Company
+    console.info('[AUTH] /auth/login - lookup by email', { email });
     const user = await User.findOne({
       where: { email },
       include: [{ model: Company, as: 'company', attributes: ['name', 'logoUrl', 'primaryColor'] }]
     });
 
+    console.info('[AUTH] /auth/login - user found:', Boolean(user));
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -144,6 +156,7 @@ export const login = async (req, res) => {
     }
 
     // Check if user is active
+    console.info('[AUTH] /auth/login - isActive check', { userId: user.id, isActive: user.isActive });
     if (!user.isActive) {
       return res.status(401).json({
         success: false,
@@ -152,6 +165,7 @@ export const login = async (req, res) => {
     }
 
     // Check password
+    console.info('[AUTH] /auth/login - comparing password', { userId: user.id });
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({
@@ -160,6 +174,7 @@ export const login = async (req, res) => {
       });
     }
 
+    console.info('[AUTH] /auth/login - generating token', { userId: user.id });
     const token = generateToken(user.id);
 
     res.status(200).json({
@@ -177,6 +192,7 @@ export const login = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('[AUTH] /auth/login - error', { message: error.message, stack: error.stack });
     res.status(500).json({
       success: false,
       message: error.message

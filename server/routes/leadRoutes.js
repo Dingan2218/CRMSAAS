@@ -21,7 +21,20 @@ const router = express.Router();
 
 router.use(protect);
 
-router.post('/upload', authorize('admin', 'accountant'), upload.single('file'), uploadLeads);
+router.post(
+  '/upload',
+  authorize('admin', 'accountant'),
+  (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+      if (err) {
+        const msg = err?.message || 'Upload failed';
+        return res.status(400).json({ success: false, message: msg });
+      }
+      next();
+    });
+  },
+  uploadLeads
+);
 router.post('/', authorize('admin', 'accountant', 'salesperson'), createLead);
 router.get('/countries', getCountries);
 router.get('/products', getProducts);

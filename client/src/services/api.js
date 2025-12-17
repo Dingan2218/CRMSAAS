@@ -72,6 +72,18 @@ api.interceptors.response.use(
     const message = error.response?.data?.message || '';
     const isAuthEndpoint = /\/auth\/(login|login-phone|register)/.test(url);
 
+    // Retry transient capacity errors (e.g., 503 from server under DB load) for idempotent GETs only
+    if (status === 503 && error.config && (error.config.method || 'get').toLowerCase() === 'get') {
+      const cfg = error.config;
+      cfg.__retryCount = cfg.__retryCount || 0;
+      if (cfg.__retryCount < 3) {
+        cfg.__retryCount += 1;
+        const base = 300; // ms
+        const delay = Math.min(2000, base * Math.pow(2, cfg.__retryCount)) + Math.floor(Math.random() * 100);
+        return new Promise((resolve) => setTimeout(resolve, delay)).then(() => api(cfg));
+      }
+    }
+
     // Only logout on actual token expiration/invalid token, not on permission errors
     if (status === 401 && !isAuthEndpoint) {
       // Check for clear token/JWT problems only

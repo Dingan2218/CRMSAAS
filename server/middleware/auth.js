@@ -18,31 +18,11 @@ export const protect = async (req, res, next) => {
       });
     }
 
+    // Verify JWT separately so DB errors don't look like auth failures
+    let decoded;
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
       console.info('[AUTH] protect - token verified', { userId: decoded.id });
-      req.user = await User.findByPk(decoded.id, {
-        attributes: { exclude: ['password'] }
-      });
-
-      if (!req.user) {
-        console.warn('[AUTH] protect - user not found for token', { userId: decoded.id });
-        return res.status(401).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      if (!req.user.isActive) {
-        console.warn('[AUTH] protect - user inactive', { userId: req.user.id });
-        return res.status(401).json({
-          success: false,
-          message: 'User account is deactivated'
-        });
-      }
-
-      console.info('[AUTH] protect - access granted', { userId: req.user.id, path: req.path, method: req.method });
-      next();
     } catch (error) {
       console.error('[AUTH] protect - token verification error', { message: error.message, path: req.path });
       return res.status(401).json({
@@ -50,6 +30,40 @@ export const protect = async (req, res, next) => {
         message: 'Not authorized to access this route'
       });
     }
+
+    // Load user from DB; handle capacity/connection errors distinctly
+    try {
+      req.user = await User.findByPk(decoded.id, {
+        attributes: { exclude: ['password'] }
+      });
+    } catch (dbErr) {
+      const msg = dbErr?.message || '';
+      const isCapacity = /MaxClientsInSessionMode|Max client connections/i.test(msg);
+      console.error('[AUTH] protect - user load error', { message: msg, path: req.path });
+      return res.status(isCapacity ? 503 : 500).json({
+        success: false,
+        message: isCapacity ? 'Service temporarily busy. Please retry.' : 'Server error while loading user'
+      });
+    }
+
+    if (!req.user) {
+      console.warn('[AUTH] protect - user not found for token', { userId: decoded.id });
+      return res.status(401).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (!req.user.isActive) {
+      console.warn('[AUTH] protect - user inactive', { userId: req.user.id });
+      return res.status(401).json({
+        success: false,
+        message: 'User account is deactivated'
+      });
+    }
+
+    console.info('[AUTH] protect - access granted', { userId: req.user.id, path: req.path, method: req.method });
+    next();
   } catch (error) {
     console.error('[AUTH] protect - server error', { message: error.message, stack: error.stack });
     res.status(500).json({

@@ -9,7 +9,9 @@ import { distributeLeads, getDistributionSummary } from '../utils/leadDistributo
 // @access  Private/Admin
 export const uploadLeads = async (req, res) => {
   try {
+    console.info('[LEADS] POST /leads/upload - start');
     if (!req.file) {
+      console.warn('[LEADS] /leads/upload - no file provided');
       return res.status(400).json({
         success: false,
         message: 'Please upload a file'
@@ -17,9 +19,11 @@ export const uploadLeads = async (req, res) => {
     }
 
     const filePath = req.file.path;
+    console.info('[LEADS] /leads/upload - file received', { filePath, size: req.file.size, mimetype: req.file.mimetype });
 
     // Parse the file
     const parsedLeads = await parseFile(filePath);
+    console.info('[LEADS] /leads/upload - parsed leads count', { count: parsedLeads.length });
 
     if (parsedLeads.length === 0) {
       deleteFile(filePath);
@@ -31,9 +35,11 @@ export const uploadLeads = async (req, res) => {
 
     // Distribute leads among salespeople
     const distributedLeads = await distributeLeads(parsedLeads);
+    console.info('[LEADS] /leads/upload - distributed leads count', { count: distributedLeads.length });
 
     // Save leads to database
     const createdLeads = await Lead.bulkCreate(distributedLeads);
+    console.info('[LEADS] /leads/upload - bulkCreate done', { created: createdLeads.length });
 
     // Get distribution summary
     const summary = await getDistributionSummary(distributedLeads);
@@ -50,12 +56,15 @@ export const uploadLeads = async (req, res) => {
       }
     });
   } catch (error) {
-    if (req.file) {
-      deleteFile(req.file.path);
-    }
-    res.status(500).json({
+    try {
+      if (req.file?.path) deleteFile(req.file.path);
+    } catch(_) {}
+    const msg = error?.message || 'Upload failed';
+    const isCapacity = /MaxClientsInSessionMode|Max client connections/i.test(msg);
+    console.error('[LEADS] /leads/upload - error', { message: msg, stack: error?.stack });
+    res.status(isCapacity ? 503 : 500).json({
       success: false,
-      message: error.message
+      message: isCapacity ? 'Service temporarily busy. Please retry upload.' : msg
     });
   }
 };

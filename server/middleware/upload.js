@@ -12,13 +12,17 @@ const uploadsDir = process.env.VERCEL === '1'
   ? '/tmp/uploads'
   : path.join(__dirname, '../../uploads');
 
-// Only try to create directory if not in Vercel (Vercel auto-handles /tmp)
-if (process.env.VERCEL !== '1' && !fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+// Ensure directory exists in all environments (including Vercel /tmp)
+if (!fs.existsSync(uploadsDir)) {
+  try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch (_) {}
 }
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
+    // Guard: re-ensure path exists at runtime
+    if (!fs.existsSync(uploadsDir)) {
+      try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch (_) {}
+    }
     cb(null, uploadsDir);
   },
   filename: function (req, file, cb) {

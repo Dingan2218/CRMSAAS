@@ -34,6 +34,16 @@ const ManageSalespeople = () => {
     }
   };
 
+  const handleActivate = async (id, name) => {
+    try {
+      await userAPI.updateSalesperson(id, { isActive: true });
+      toast.success('Salesperson activated');
+      fetchSalespeople();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to activate salesperson');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -202,13 +212,21 @@ const ManageSalespeople = () => {
                   <Edit2 className="h-4 w-4" />
                   <span>Edit</span>
                 </button>
-                {person.isActive && (
+                {person.isActive ? (
                   <button
                     onClick={() => handleDeactivate(person.id, person.name)}
                     className="flex-1 btn-danger text-sm flex items-center justify-center space-x-1"
                   >
                     <UserX className="h-4 w-4" />
                     <span>Deactivate</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleActivate(person.id, person.name)}
+                    className="flex-1 btn-primary text-sm flex items-center justify-center space-x-1"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    <span>Activate</span>
                   </button>
                 )}
                 <button

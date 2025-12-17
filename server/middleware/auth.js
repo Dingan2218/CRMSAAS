@@ -1,12 +1,8 @@
 import jwt from 'jsonwebtoken';
 import { User } from '../models/index.js';
-import { connectDB } from '../config/database.js';
 
 export const protect = async (req, res, next) => {
   try {
-    // Ensure DB is connected (no-op if already connected)
-    await connectDB();
-
     let token;
 
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {

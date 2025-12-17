@@ -30,7 +30,15 @@ const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
   dialectModule: pg, // Required for Vercel/Serverless
   logging: false,
   // Only use SSL if explicitly requested. Some production setups might use private networking without SSL.
-  dialectOptions: (DB_SSL === 'true') ? { ssl: { require: true, rejectUnauthorized: false } } : {}
+  dialectOptions: (DB_SSL === 'true') ? { ssl: { require: true, rejectUnauthorized: false } } : {},
+  // Connection pool settings for serverless
+  pool: {
+    max: 2, // Reduce max connections for serverless
+    min: 0,
+    acquire: 10000, // 10 seconds
+    idle: 0, // Close idle connections immediately
+    evict: 1000 // Check for idle connections every second
+  }
 });
 
 let isConnected = false;
@@ -46,12 +54,14 @@ export const connectDB = async () => {
     await sequelize.authenticate();
     console.log('✅ PostgreSQL connected successfully');
 
-    // Skip sync in Vercel/serverless - tables should already exist
-    if (process.env.VERCEL !== '1') {
+    // Skip sync in production/Vercel - tables should already exist
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+
+    if (!isProduction) {
       await sequelize.sync({ alter: false });
       console.log('✅ Database synchronized');
     } else {
-      console.log('⚡ Skipping sync in serverless environment');
+      console.log('⚡ Skipping sync in production environment');
     }
 
     isConnected = true;

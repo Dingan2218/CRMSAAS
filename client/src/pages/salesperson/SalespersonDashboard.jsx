@@ -1,14 +1,19 @@
 import { useState, useEffect } from 'react';
 import { dashboardAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import StatCard from '../../components/StatCard';
 import { ClipboardList, Phone, CheckCircle, XCircle, DollarSign, Target } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
 const SalespersonDashboard = () => {
+  const { user } = useAuth();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Get custom primary color from company
+  const primaryColor = user?.company?.primaryColor || '#22c55e';
 
   useEffect(() => {
     fetchDashboard();
@@ -29,7 +34,7 @@ const SalespersonDashboard = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: primaryColor }}></div>
       </div>
     );
   }
@@ -100,11 +105,11 @@ const SalespersonDashboard = () => {
               <Bar dataKey="Achieved" fill="#10b981" name="Achieved (Closings)" />
             </BarChart>
           </ResponsiveContainer>
-          
+
           <div className="mt-4 grid grid-cols-2 gap-4">
-            <div className="text-center p-3 bg-blue-50 rounded-lg">
+            <div className="text-center p-3 rounded-lg" style={{ backgroundColor: `${primaryColor}15` }}>
               <p className="text-sm text-gray-600">Weekly Achievement</p>
-              <p className="text-2xl font-bold text-primary-600">{weekly?.achievement || 0}%</p>
+              <p className="text-2xl font-bold" style={{ color: primaryColor }}>{weekly?.achievement || 0}%</p>
             </div>
             <div className="text-center p-3 bg-green-50 rounded-lg">
               <p className="text-sm text-gray-600">Monthly Achievement</p>
@@ -167,7 +172,7 @@ const SalespersonDashboard = () => {
         {recentCalls && recentCalls.length > 0 ? (
           <div className="space-y-3">
             {recentCalls.map((lead) => (
-              <div key={lead.id} className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div key={lead.id} className="flex items-center justify-between p-4 rounded-lg border" style={{ backgroundColor: `${primaryColor}10`, borderColor: `${primaryColor}40` }}>
                 <div>
                   <h4 className="font-semibold text-gray-900">{lead.name}</h4>
                   <p className="text-sm text-gray-600">{lead.phone}</p>
@@ -179,7 +184,7 @@ const SalespersonDashboard = () => {
                   )}
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-blue-700">
+                  <p className="text-sm font-medium" style={{ color: primaryColor }}>
                     {format(new Date(lead.lastCalled), 'MMM dd, yyyy')}
                   </p>
                   <p className="text-xs text-gray-500">

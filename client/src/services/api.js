@@ -63,12 +63,27 @@ api.interceptors.response.use(
   (error) => {
     const status = error.response?.status;
     const url = error.config?.url || '';
+    const message = error.response?.data?.message || '';
     const isAuthEndpoint = /\/auth\/(login|login-phone|register)/.test(url);
+
+    // Only logout on actual token expiration/invalid token, not on permission errors
     if (status === 401 && !isAuthEndpoint) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      if (typeof window !== 'undefined' && window.location?.pathname !== '/login') {
-        window.location.href = '/login';
+      // Check if it's a token expiration or invalid token (not just unauthorized action)
+      const isTokenError = message.includes('token') ||
+        message.includes('expired') ||
+        message.includes('invalid') ||
+        message.includes('Not authorized to access');
+
+      // Only logout if it's actually a token problem
+      if (isTokenError) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        if (typeof window !== 'undefined' && window.location?.pathname !== '/login') {
+          // Add a small delay to allow any pending requests to complete
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 100);
+        }
       }
     }
     return Promise.reject(error);
